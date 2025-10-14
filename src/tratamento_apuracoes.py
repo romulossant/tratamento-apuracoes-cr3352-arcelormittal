@@ -162,13 +162,17 @@ def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
     REGRAS_HORARIO = {
         "JANTAR": {
             "SOBRA LIMPA": ("19:00:00", "06:00:00"),
+            # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
             "PRODUCAO INICIAL": "19:15:00",
+            # Cadenciamento com 15 minutos de tolerância antes do início do horário de atendimento
             "CADENCIAMENTO": ("18:45:00", "22:00:00")
         },
         "ALMOCO": {
-            "SOBRA LIMPA": ("10:45:00", "19:00:00"),
+            "SOBRA LIMPA": ("10:45:00", "17:00:00"),
+            # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
             "PRODUCAO INICIAL": "11:00:00",
-            "CADENCIAMENTO": ("10:45:00", "14:30:00")
+            # Cadenciamento com 15 minutos de tolerância antes do início do horário deatendimento
+            "CADENCIAMENTO": ("10:30:00", "14:30:00")
         }
     }
     
