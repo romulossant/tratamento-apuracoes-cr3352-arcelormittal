@@ -26,8 +26,6 @@ A lógica do script é dividida em duas partes: Funções Auxiliares e de Análi
 
 ### 2. Função Principal: `tratamento_apuracoes()`
 
-Esta função orquestra todo o processo de ETL (Extração, Transformação e Carga).
-
 1.  **Extração e Filtro Inicial:**
     * Lê o arquivo de entrada (`arquivo_entrada`) usando `CalamineWorkbook` para maior velocidade de leitura de arquivos grandes.
     * Solicita a opção de filtro por data ou intervalo.
