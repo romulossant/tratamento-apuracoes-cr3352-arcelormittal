@@ -162,13 +162,13 @@ def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
     REGRAS_HORARIO = {
         "JANTAR": {
             "SOBRA LIMPA": ("19:00:00", "06:00:00"),
-            "PRODUCAO INICIAL": "19:30:00",
+            "PRODUCAO INICIAL": "19:15:00",
             "CADENCIAMENTO": ("18:45:00", "22:00:00")
         },
         "ALMOCO": {
             "SOBRA LIMPA": ("10:45:00", "19:00:00"),
-            "PRODUCAO INICIAL": "11:15:00",
-            "CADENCIAMENTO": ("10:30:00", "14:30:00")
+            "PRODUCAO INICIAL": "11:00:00",
+            "CADENCIAMENTO": ("10:45:00", "14:30:00")
         }
     }
     
@@ -179,27 +179,27 @@ def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
     if turno in REGRAS_HORARIO:
         regras_turno = REGRAS_HORARIO[turno]
 
-        # Checa se a perda por preparação é lançado depois o fim do horário de atendimento
+        # Se a perda por preparação é lançado depois o fim do horário de atendimento
         if "PERDA POR PREPARACAO" in etapa and produto != "Z AMOSTRA":
             limite_horario = regras_turno.get("CADENCIAMENTO")
             if limite_horario and horario > limite_horario[1]:
                 return "SOBRA LIMPA PESADA COMO PERDA POR PREP."
             # A checagem de Cadenciamento vs perda por poreparação é feita na função de Clusterização.
         
-        # Sobra Limpa
+        # Se a sobra limpa está sendo pesada antes ou depois do início/fim do horário de atendimento
         if "SOBRA LIMPA" in etapa:
             limite_horario = regras_turno.get("SOBRA LIMPA")
-            if horario < limite_horario[0]:
+            if horario > limite_horario[1] and horario < limite_horario[0]:
                 return "ERRO NA PESAGEM DE SOBRA LIMPA"
         
-        # Produção Inicial
+        # Se a produção inicial está sendo pesada apenas antes do início do horário de atendimento
         elif "PRODUCAO INICIAL" in etapa:
             if etapa == "PRODUCAO INICIAL TRANSPORTADA": return None
             limite_horario = regras_turno.get("PRODUCAO INICIAL")
             if horario > limite_horario:
                 return "ERRO NA PESAGEM DE PROD. INICIAL"
 
-        # Cadenciamento
+        # Se o cadenciamento está sendo pesado só dentro do intervalo de atendimento
         elif "CADENCIAMENTO" in etapa:
             limite_horario = regras_turno.get("CADENCIAMENTO")
             if (horario < limite_horario[0] or horario > limite_horario[1]):
