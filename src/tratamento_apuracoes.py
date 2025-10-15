@@ -41,14 +41,14 @@ def gerar_intervalo_de_datas(data_inicial, data_final):
 def obter_data():
     while True:
         try:
-            data_inicial = input("Digite a data inicial (ex: 01/01/2001): ")
+            data_inicial = input("\n>>> Digite a data inicial (ex: 01/01/2001): ")
             data_inicial_formatada = datetime.datetime.strptime(data_inicial, '%d/%m/%Y')
             data_inicial_intervalo = data_inicial_formatada.strftime('%d/%m/%Y')
 
-            deseja_intervalo = str(input("\nDeseja filtrar por intervalo? (S/N): ")).lower()
+            deseja_intervalo = str(input("\n>>> Deseja filtrar por intervalo? (S/N): ")).lower()
 
             if deseja_intervalo == "s":
-                data_final = input("\nInsira a data final (ex: 01/01/2001): ")
+                data_final = input("\n>>> Insira a data final (ex: 01/01/2001): ")
                 data_final_formatada = datetime.datetime.strptime(data_final, '%d/%m/%Y')
                 data_final_intervalo = data_final_formatada.strftime('%d/%m/%Y')
 
@@ -58,7 +58,7 @@ def obter_data():
                 print(f"\nFiltrando pela data {data_inicial_intervalo}!\n")
                 return [data_inicial_intervalo]
         except ValueError:
-            print("Formato inválido. Utilize o formato 'dia/mes/ano' (ex: 01/01/2001).")
+            print("Formato ou intervalo inválidos. Utilize o formato 'dia/mes/ano'.\n")
 
 def formatar_coluna_data(caminho_arquivo, nome_coluna='data'):
     # Formata a coluna de data no arquivo Excel final usando openpyxl
@@ -161,14 +161,12 @@ def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
     # Avalia erros de pesagem com base em regras de horário e etapa (Pré-Cluster).
     REGRAS_HORARIO = {
         "JANTAR": {
-            "SOBRA LIMPA": ("19:00:00", "06:00:00"),
             # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
             "PRODUCAO INICIAL": "19:15:00",
             # Cadenciamento com 15 minutos de tolerância antes do início do horário de atendimento
             "CADENCIAMENTO": ("18:45:00", "22:00:00")
         },
         "ALMOCO": {
-            "SOBRA LIMPA": ("10:45:00", "17:00:00"),
             # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
             "PRODUCAO INICIAL": "11:00:00",
             # Cadenciamento com 15 minutos de tolerância antes do início do horário deatendimento
@@ -192,9 +190,12 @@ def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
         
         # Se a sobra limpa está sendo pesada antes ou depois do início/fim do horário de atendimento
         if "SOBRA LIMPA" in etapa:
-            limite_horario = regras_turno.get("SOBRA LIMPA")
-            if horario > limite_horario[1] and horario < limite_horario[0]:
-                return "ERRO NA PESAGEM DE SOBRA LIMPA"
+            if turno == "ALMOCO":
+                if horario < "10:45:00" or horario > "17:00:00":
+                    return "ERRO NA PESAGEM DE SOBRA LIMPA"
+            elif turno == "JANTAR":
+                if horario < "19:00:00" and horario > "06:00:00":
+                    return "ERRO NA PESAGEM DE SOBRA LIMPA"
         
         # Se a produção inicial está sendo pesada apenas antes do início do horário de atendimento
         elif "PRODUCAO INICIAL" in etapa:
@@ -327,17 +328,23 @@ def tratar_planilha_apuracao():
     
     try:
         wb = CalamineWorkbook.from_path(arquivo_entrada)
-        print("\n=================\tTRATAMENTO APURAÇÃO DE PESAGENS BALANÇAS IOS - SAPORE ARCELORMITTAL TUBARÃO\t=================")
-        
-        opcao_usuario = input("Deseja filtrar por data? (S/N): ").lower()
-        if opcao_usuario == 's':
-            data_para_filtro = obter_data()
-        elif opcao_usuario == 'n':
-            print("\n\nProcessando todas as datas. Aguarde...\n\n")
-            data_para_filtro = None
-        else:
-            print("Opção inválida. Tente novamente.")
-            return
+        print("=========================================================================================")
+        print("#\tTRATAMENTO APURAÇÃO DE PESAGENS BALANÇAS IOS - SAPORE ARCELORMITTAL TUBARÃO\t#")
+        print(f"#\t\tEm caso de dúvidas ou sugestões, romulo.santana@sapore.com.br\t\t#")     
+        print("=========================================================================================\n")
+   
+        while True:
+            opcao_usuario = input(">>> Deseja filtrar por data? (S/N): ").lower()
+            if opcao_usuario == 's':
+                data_para_filtro = obter_data()
+                break
+            elif opcao_usuario == 'n':
+                print("\n\nProcessando todas as datas. Aguarde...\n\n")
+                data_para_filtro = None
+                break
+            else:
+                print("Opção inválida. Tente novamente.")
+                continue
 
         nomes_abas_disponiveis = wb.sheet_names
 
