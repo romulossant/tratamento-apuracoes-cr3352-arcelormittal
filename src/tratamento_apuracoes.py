@@ -261,37 +261,37 @@ def analisar_clusters_de_pesagem(df):
         return df
 
     # Calcular o intervalo de tempo
-    grouped = df_filtrado.groupby(['restaurante', 'produto'])
-    df_filtrado['intervalo_minutos'] = grouped['minutos_desde_meia_noite'].diff()
+    df_agrupado = df_filtrado.groupby(['restaurante', 'produto'])
+    df_filtrado['intervalo_minutos'] = df_agrupado['minutos_desde_meia_noite'].diff()
     
     # Remoção de NaNs (primeira pesagem do grupo)
-    df_clean = df_filtrado.dropna(subset=['pesagem', 'intervalo_minutos']).copy() 
+    df_limpo = df_filtrado.dropna(subset=['pesagem', 'intervalo_minutos']).copy() 
 
     # Treinamento e Clusterização (K-Means)
-    FEATURES = ['pesagem', 'intervalo_minutos']
-    X = df_clean[FEATURES]
+    CARACTERISTICAS = ['pesagem', 'intervalo_minutos']
+    X = df_limpo[CARACTERISTICAS]
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    escala = StandardScaler()
+    X_escala = escala.fit_transform(X)
     
     K = 5 
     kmeans = KMeans(n_clusters=K, random_state=42, n_init=10)
-    df_clean['cluster_id'] = kmeans.fit_predict(X_scaled)
+    df_limpo['cluster_id'] = kmeans.fit_predict(X_escala)
     
     # Identificação do cluster de cadenciamento (menor intervalo médio)
-    cluster_analise = df_clean.groupby('cluster_id')['intervalo_minutos'].mean()
+    cluster_analise = df_limpo.groupby('cluster_id')['intervalo_minutos'].mean()
     cluster_cadenciamento_id = cluster_analise.idxmin()
 
     # 4. Aplicação da regra de desvio
     eh_ppp_suspeito_cad = (
-        (df_clean['etapa'].str.upper().str.contains("PERDA POR PREPARACAO")) &
-        (df_clean['cluster_id'] == cluster_cadenciamento_id)
+        (df_limpo['etapa'].str.upper().str.contains("PERDA POR PREPARACAO")) &
+        (df_limpo['cluster_id'] == cluster_cadenciamento_id)
     )
     
-    df_clean.loc[eh_ppp_suspeito_cad, 'erro_cluster'] = "CADENCIAMENTO PESADO COMO PERDA POR PREP."
+    df_limpo.loc[eh_ppp_suspeito_cad, 'erro_cluster'] = "CADENCIAMENTO PESADO COMO PERDA POR PREP."
     
     # Merge de volta ao DF original
-    df = df.merge(df_clean[['cluster_id', 'erro_cluster']], 
+    df = df.merge(df_limpo[['cluster_id', 'erro_cluster']], 
                   left_index=True, right_index=True, how='left')
 
     # Junta o novo erro com a coluna 'erro' existente
