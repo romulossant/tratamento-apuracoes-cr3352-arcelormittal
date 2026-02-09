@@ -4,6 +4,8 @@ import time
 import datetime
 import glob
 from openpyxl import load_workbook
+import unicodedata
+
 # Bibliotecas de ML para a análise de Clusterização
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -129,9 +131,119 @@ def definir_categoria_preparacao(preparacao):
 
     return None
 
+def normalizar_texto(texto):
+    texto = texto.upper()
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return texto.strip()
+
+
+def definir_etapa(etapa, restaurante, balanca):
+    e = normalizar_texto(etapa)
+
+    RESTAURANTES = [
+        "ACIARIA SUL",
+        "ACIARIA NORTE",
+        "ACABAMENTO",
+        "ALTO FORNO",
+        "CENTRO",
+        "COQUERIA",
+        "SUNCOKE",
+        "MINI CONTINUO",
+        "MINI LTQ",
+        "MINI CONVERTEDOR",
+        "MANUTENCAO",
+        "SINTERIZACAO",
+        "TRANSPORTE",
+    ]
+
+    # CADENCIAMENTO
+    if "CADENCIAMENTO" in e:
+        if "CENTRAL" in e:
+            return "CADENCIAMENTO CENTRAL"
+        return "CADENCIAMENTO"
+
+    # PRODUÇÃO TRANSPORTADA
+    if balanca == "CENTRAL" or balanca == "CENTRAL SALADA" or balanca == "CENTRAL CONFEITARIA":
+        if any(r in e for r in RESTAURANTES):
+            return "PRODUCAO INICIAL TRANSPORTADA"
+        else:
+            return "PRODUCAO INICIAL CENTRAL"
+        
+    # PRODUÇÃO INICIAL
+    if "PRODUCAO" in e:
+            return "PRODUCAO INICIAL"
+
+    # SOBRAS
+    if "SOBRA LIMPA" in e or "SOB LIMPA" in e:
+        return "SOBRA LIMPA"
+
+    if "RESTO INGESTA" in e:
+        return "RESTO INGESTA"
+
+    # PERDAS
+    if "PERDA" in e:
+        if "ARMAZENAMENTO" in e:
+            return "PERDA ARMAZENAMENTO"
+        return "PERDA POR PREPARACAO"
+
+    # REQUISIÇÕES
+    if "ENTRADA REQUISICAO" in e:
+        return "ENTRADA REQUISICAO"
+
+    if "REQUISICAO" in e:
+        return "REQUISICAO"
+
+    if "EXTRA REQUISICAO" in e:
+        return "EXTRA REQUISICAO"
+
+    # RECEBIMENTO / ENTRADA
+    if "RECEBIMENTO" in e:
+        return "RECEBIMENTO"
+
+    if "ENTRADA DE PRODUTO" in e:
+        return "ENTRADA DE PRODUTO"
+
+    # DEVOLUÇÕES
+    if "DEVOLUCAO" in e:
+        return "DEVOLUCAO QUALIDADE"
+
+    # PROTEÍNAS
+    if "PROTEINA PROCESSADA" in e:
+        return "PROTEINA PROCESSADA"
+
+    if "PROTEINA CONGELADA" in e:
+        return "PROTEINA CONGELADA"
+
+    # APARAS
+    if "APARAS" in e:
+        return "APARAS"
+
+    # SOCORRO
+    if "SOCORRO" in e:
+        return "SOCORRO"
+
+    # ANTECIPAÇÃO
+    if "ANTECIP" in e:
+        return "ANTECIPACAO"
+
+    # REGENERAÇÃO
+    if "REGENER" in e:
+        return "REGENERACAO"
+
+    # FALLBACK
+    return etapa
+
+
 def definir_turno_da_pesagem(restaurante, horario, etapa):
-    # Define o turno (ALMOCO ou JANTAR) com base no restaurante, etapa e horário.
+    # Define o turno (ALMOCO ou JANTAR) com base no restaurante, etapa e horário, caso não tenha "ALMOCO/JANTAR" na etapa.
+
     etapa_upper = etapa.upper().strip() 
+
+    if "ALM" in etapa_upper:
+        return "ALMOCO"
+    if "JAN" in etapa_upper:
+        return "JANTAR"
     
     abre_todo_dia_almoco_e_jantar = restaurante in ABREM_TODO_DIA_ALMOCO_E_JANTAR
     eh_prod_inicial = "PRODUCAO INICIAL" in etapa_upper
@@ -414,6 +526,16 @@ def tratar_planilha_apuracao():
             # Identificação de erros com base em horários
             df_final['erro'] = df_final.apply(
                 lambda row: avaliar_erros_na_pesagem(produto=row['produto'], etapa=row['etapa'], horario=row['horario'], turno=row['turno']), axis=1
+            )
+
+            # Tratamento da coluna de etapa
+            df_final["etapa"] = df_final.apply(
+            lambda row: definir_etapa(
+                etapa=row["etapa"],
+                restaurante=row["restaurante"],
+                balanca=row["balanca"]
+            ),
+            axis=1
             )
             
             # Análise por clusterização para erros de perda de preparação
