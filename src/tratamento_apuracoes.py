@@ -5,6 +5,8 @@ import datetime
 import glob
 from openpyxl import load_workbook
 import unicodedata
+import logging
+import os
 
 # Bibliotecas de ML para a análise de Clusterização
 from sklearn.cluster import KMeans
@@ -39,6 +41,13 @@ def gerar_intervalo_de_datas(data_inicial, data_final):
         data_inicial += datetime.timedelta(days=1)
     
     return intervalo
+
+def normalizar_texto(texto):
+    texto = texto.upper()
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return texto.strip()
+
 
 def obter_data():
     while True:
@@ -131,12 +140,68 @@ def definir_categoria_preparacao(preparacao):
 
     return None
 
-def normalizar_texto(texto):
-    texto = texto.upper()
-    texto = unicodedata.normalize("NFD", texto)
-    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
-    return texto.strip()
+def criar_logger(data_log):
+    """
+    Cria um resumo específico para uma data (DD-MM-YYYY)
+    Escreve APENAS em arquivo (sem saída no terminal)
+    """
 
+    os.makedirs("resumos_apuracao", exist_ok=True)
+
+    nome_arquivo = f"resumos_apuracao/apuracao_{data_log}.log"
+
+    logger = logging.getLogger(f"resumo_{data_log}")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%d/%m/%Y %H:%M:%S"
+    )
+
+    file_handler = logging.FileHandler(nome_arquivo, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+
+    # Somente arquivo
+    logger.addHandler(file_handler)
+
+    # Evita propagação para o root logger (muito importante)
+    logger.propagate = False
+
+    return logger
+
+def gerar_resumo_pesagens(df, logger, etapas_mestre, restaurantes_mestre):
+    logger.info("\n")
+    logger.info("=" * 90)
+    logger.info("RESUMO DE PESAGENS POR RESTAURANTE E ETAPA")
+    logger.info("=" * 90 + "\n")
+
+    etapas_df = pd.DataFrame({'etapa': etapas_mestre})
+
+    resumo = (
+        df.groupby(['restaurante', 'etapa'])['pesagem']
+        .sum()
+        .reset_index()
+    )
+    resumo['etapa'] = resumo['etapa'].str.upper()
+
+    for restaurante in sorted(restaurantes_mestre):
+        logger.info("-" * 90)
+        logger.info(f"RESTAURANTE: {restaurante}")
+        logger.info("-" * 90)
+
+        resumo_rest = resumo[resumo['restaurante'] == restaurante]
+
+        resumo_completo = (
+            etapas_df
+            .merge(resumo_rest[['etapa', 'pesagem']], on='etapa', how='left')
+            .fillna({'pesagem': 0.0})
+        )
+
+        for _, row in resumo_completo.iterrows():
+            logger.info(f"{row['etapa']:<40} : {row['pesagem']:.2f} kg")
+
+        logger.info("")
 
 def definir_etapa(etapa, restaurante, balanca):
     e = normalizar_texto(etapa)
@@ -435,7 +500,6 @@ def tratar_planilha_apuracao():
         input()
         return
 
-    inicio = time.time()
     dfs = []
     
     try:
@@ -462,6 +526,7 @@ def tratar_planilha_apuracao():
 
         # Carregamento e inserção de colunas dependentes da aba, como por exemplo nome do restaurante e nome da balança.
         for aba_nome in nomes_abas_disponiveis:
+            inicio = time.time()
             if "CONSOLIDADO" in aba_nome.upper(): continue
 
             print(f"Tratando aba {aba_nome}.")
@@ -506,6 +571,12 @@ def tratar_planilha_apuracao():
         dfs_validos = [df for df in dfs if not df.empty]
         if dfs_validos:
             df_final = pd.concat(dfs_validos, ignore_index=True)
+
+            # Definição das datas que terão log
+            if opcao_usuario == 's':
+                datas_unicas = data_para_filtro
+            else:
+                datas_unicas = sorted(df_final['data'].unique())
 
             if 'horario' in df_final.columns:
                  df_final['horario'] = df_final['horario'].astype(str)
@@ -559,6 +630,36 @@ def tratar_planilha_apuracao():
             print(f"Total de linhas processadas: {len(df_final)}")
             print(f"Total de planilhas processadas: {len(dfs_validos)}")
             print(f"Tempo de execução: {(fim - inicio):.2f} segundos")
+
+            # Listas "mestres" de etapas e restaurantes
+            etapas_mestre_global = (
+                df_final['etapa']
+                .dropna()
+                .str.upper()
+                .unique()
+                .tolist()
+            )
+
+            restaurantes_mestre_global = (
+                df_final['restaurante']
+                .dropna()
+                .unique()
+                .tolist()
+            )
+
+            for data_log in datas_unicas:
+                logger = criar_logger(data_log.replace("/", "-"))
+
+                df_dia = df_final[df_final['data'] == data_log]
+
+                logger.info(f"Arquivo de consolidação: {arquivo_saida}")
+                logger.info(f"Data processada: {data_log}")
+                logger.info(f"Total de linhas processadas: {len(df_dia)}")
+                logger.info(f"Total de planilhas processadas: {len(dfs_validos)}")
+                logger.info(f"Tempo de execução: {(fim - inicio):.2f} segundos")
+
+                gerar_resumo_pesagens(df_dia, logger, etapas_mestre_global, restaurantes_mestre_global)
+            print("Resumo das pesagens por dia criados, confira na pasta 'resumos_apuracao'")
 
         else:
             print("Nenhuma aba válida para consolidação.")
