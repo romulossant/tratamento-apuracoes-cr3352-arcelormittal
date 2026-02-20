@@ -203,7 +203,7 @@ def gerar_resumo_pesagens(df, logger, etapas_mestre, restaurantes_mestre):
 
         logger.info("")
 
-def definir_etapa(etapa, restaurante, balanca):
+def definir_etapa(etapa, restaurante, balanca, produto):
     e = normalizar_texto(etapa)
 
     RESTAURANTES = [
@@ -239,12 +239,13 @@ def definir_etapa(etapa, restaurante, balanca):
     if "PRODUCAO" in e:
             return "PRODUCAO INICIAL"
 
+    # RESTO INGESTA
+    if "RESTO INGESTA" in produto:
+        return "RESTO INGESTA"
+    
     # SOBRAS
     if "SOBRA LIMPA" in e or "SOB LIMPA" in e:
         return "SOBRA LIMPA"
-
-    if "RESTO INGESTA" in e:
-        return "RESTO INGESTA"
 
     # PERDAS
     if "PERDA" in e:
@@ -604,7 +605,8 @@ def tratar_planilha_apuracao():
             lambda row: definir_etapa(
                 etapa=row["etapa"],
                 restaurante=row["restaurante"],
-                balanca=row["balanca"]
+                balanca=row["balanca"],
+                produto=row["produto"]
             ),
             axis=1
             )
