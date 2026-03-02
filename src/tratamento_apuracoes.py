@@ -222,6 +222,14 @@ def definir_etapa(etapa, restaurante, balanca, produto):
         "TRANSPORTE",
     ]
 
+    # RESTO INGESTA
+    if "RESTO INGESTA" in produto:
+        return "RESTO INGESTA"
+    
+    # SOBRAS
+    if "SOBRA LIMPA" in e or "SOB LIMPA" in e:
+        return "SOBRA LIMPA"
+
     # CADENCIAMENTO
     if "CADENCIAMENTO" in e:
         if "CENTRAL" in e:
@@ -238,15 +246,7 @@ def definir_etapa(etapa, restaurante, balanca, produto):
     # PRODUÇÃO INICIAL
     if "PRODUCAO" in e:
             return "PRODUCAO INICIAL"
-
-    # RESTO INGESTA
-    if "RESTO INGESTA" in produto:
-        return "RESTO INGESTA"
     
-    # SOBRAS
-    if "SOBRA LIMPA" in e or "SOB LIMPA" in e:
-        return "SOBRA LIMPA"
-
     # PERDAS
     if "PERDA" in e:
         if "ARMAZENAMENTO" in e:
@@ -528,7 +528,7 @@ def tratar_planilha_apuracao():
         # Carregamento e inserção de colunas dependentes da aba, como por exemplo nome do restaurante e nome da balança.
         for aba_nome in nomes_abas_disponiveis:
             inicio = time.time()
-            if "CONSOLIDADO" in aba_nome.upper(): continue
+            if "CONSOLIDADO" in aba_nome.upper() or "ANALITICO" in aba_nome.upper(): continue
 
             print(f"Tratando aba {aba_nome}.")
             nome_planilha = wb.get_sheet_by_name(aba_nome)
