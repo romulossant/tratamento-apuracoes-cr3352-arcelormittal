@@ -314,7 +314,13 @@ def definir_turno_da_pesagem(restaurante, horario, etapa):
     abre_todo_dia_almoco_e_jantar = restaurante in ABREM_TODO_DIA_ALMOCO_E_JANTAR
     eh_prod_inicial = "PRODUCAO INICIAL" in etapa_upper
     eh_prod_transportada = "TRANSPORTADA" in etapa_upper
+    eh_resto_ingesta = "RESTO INGESTA" in etapa_upper
 
+    if eh_resto_ingesta:
+        if horario > "14:00:00" or horario < "19:00:00":
+            return "ALMOCO"
+        return "JANTAR"
+    
     if not abre_todo_dia_almoco_e_jantar:
         return "ALMOCO"
     
