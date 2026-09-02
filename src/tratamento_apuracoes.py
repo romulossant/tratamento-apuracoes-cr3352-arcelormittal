@@ -8,10 +8,6 @@ import unicodedata
 import logging
 import os
 
-# Bibliotecas de ML para a análise de Clusterização
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-
 # Variável global dos restaurantes que tem almoço e jantar
 ABREM_TODO_DIA_ALMOCO_E_JANTAR = {
     "ACIARIA SUL", "COQUERIA", "MANUTENÇÃO CENTRAL", "MINI CONTÍNUO", 
@@ -48,7 +44,6 @@ def normalizar_texto(texto):
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto.strip()
 
-
 def obter_data():
     while True:
         try:
@@ -71,11 +66,15 @@ def obter_data():
         except ValueError:
             print("Formato ou intervalo inválidos. Utilize o formato 'dia/mes/ano'.\n")
 
-def formatar_coluna_data(caminho_arquivo, nome_coluna='data'):
+def formatar_coluna_data(caminho_arquivo, nome_coluna='data', nome_aba=None):
     # Formata a coluna de data no arquivo Excel final usando openpyxl
     try:
         wb = load_workbook(caminho_arquivo)
-        ws = wb.active
+        if nome_aba and nome_aba in wb.sheetnames:
+            ws = wb[nome_aba]
+        else:
+            ws = wb.active
+
         col_index = None
         for cell in ws[1]:
             if cell.value == nome_coluna:
@@ -83,7 +82,7 @@ def formatar_coluna_data(caminho_arquivo, nome_coluna='data'):
                 break
         
         if not col_index:
-            print(f"Erro: coluna '{nome_coluna}' não encontrada.")
+            print(f"Aviso: coluna '{nome_coluna}' não encontrada na aba '{ws.title}'.")
             return
 
         for row in ws.iter_rows(min_row=2, min_col=col_index, max_col=col_index):
@@ -97,11 +96,10 @@ def formatar_coluna_data(caminho_arquivo, nome_coluna='data'):
                 continue
 
         wb.save(caminho_arquivo)
-        print("\nFormatação da coluna 'data' aplicada no arquivo final.\n")
+        print(f"Formatação da coluna '{nome_coluna}' aplicada na aba '{ws.title}'.")
 
     except Exception as e:
         print(f"ERRO: Ocorreu um erro ao formatar a planilha: {e}")
-
 
 def definir_categoria_preparacao(preparacao):
     # Define a categoria (PROTEINA, SALADA, ARROZ, etc.) com base no nome do produto.
@@ -141,13 +139,7 @@ def definir_categoria_preparacao(preparacao):
     return None
 
 def criar_logger(data_log):
-    """
-    Cria um resumo específico para uma data (DD-MM-YYYY)
-    Escreve APENAS em arquivo (sem saída no terminal)
-    """
-
     os.makedirs("resumos_apuracao", exist_ok=True)
-
     nome_arquivo = f"resumos_apuracao/apuracao_{data_log}.log"
 
     logger = logging.getLogger(f"resumo_{data_log}")
@@ -161,11 +153,7 @@ def criar_logger(data_log):
 
     file_handler = logging.FileHandler(nome_arquivo, encoding="utf-8")
     file_handler.setFormatter(formatter)
-
-    # Somente arquivo
     logger.addHandler(file_handler)
-
-    # Evita propagação para o root logger (muito importante)
     logger.propagate = False
 
     return logger
@@ -207,103 +195,58 @@ def definir_etapa(etapa, restaurante, balanca, produto):
     e = normalizar_texto(etapa)
 
     RESTAURANTES = [
-        "ACIARIA SUL",
-        "ACIARIA NORTE",
-        "ACABAMENTO",
-        "ALTO FORNO",
-        "CENTRO",
-        "COQUERIA",
-        "SUNCOKE",
-        "MINI CONTINUO",
-        "MINI LTQ",
-        "MINI CONVERTEDOR",
-        "MANUTENCAO",
-        "SINTERIZACAO",
-        "TRANSPORTE",
+        "ACIARIA SUL", "ACIARIA NORTE", "ACABAMENTO", "ALTO FORNO",
+        "CENTRO", "COQUERIA", "SUNCOKE", "MINI CONTINUO", "MINI LTQ",
+        "MINI CONVERTEDOR", "MANUTENCAO", "SINTERIZACAO", "TRANSPORTE",
     ]
 
-    # RESTO INGESTA
     if "RESTO INGESTA" in produto:
         return "RESTO INGESTA"
-    
-    # SOBRAS
     if "SOBRA LIMPA" in e or "SOB LIMPA" in e:
         return "SOBRA LIMPA"
-
-    # CADENCIAMENTO
     if "CADENCIAMENTO" in e:
         if "CENTRAL" in e:
             return "CADENCIAMENTO CENTRAL"
         return "CADENCIAMENTO"
-
-    # PRODUÇÃO TRANSPORTADA
-    if balanca == "CENTRAL" or balanca == "CENTRAL SALADA" or balanca == "CENTRAL CONFEITARIA":
+    if balanca in ["CENTRAL", "CENTRAL SALADA", "CENTRAL CONFEITARIA"]:
         if any(r in e for r in RESTAURANTES):
             return "PRODUCAO INICIAL TRANSPORTADA"
         else:
             return "PRODUCAO INICIAL CENTRAL"
-        
-    # PRODUÇÃO INICIAL
     if "PRODUCAO" in e:
-            return "PRODUCAO INICIAL"
-    
-    # PERDAS
+        return "PRODUCAO INICIAL"
     if "PERDA" in e:
         if "ARMAZENAMENTO" in e:
             return "PERDA ARMAZENAMENTO"
         return "PERDA POR PREPARACAO"
-
-    # REQUISIÇÕES
     if "ENTRADA REQUISICAO" in e:
         return "ENTRADA REQUISICAO"
-
     if "REQUISICAO" in e:
         return "REQUISICAO"
-
     if "EXTRA REQUISICAO" in e:
         return "EXTRA REQUISICAO"
-
-    # RECEBIMENTO / ENTRADA
     if "RECEBIMENTO" in e:
         return "RECEBIMENTO"
-
     if "ENTRADA DE PRODUTO" in e:
         return "ENTRADA DE PRODUTO"
-
-    # DEVOLUÇÕES
     if "DEVOLUCAO" in e:
         return "DEVOLUCAO QUALIDADE"
-
-    # PROTEÍNAS
     if "PROTEINA PROCESSADA" in e:
         return "PROTEINA PROCESSADA"
-
     if "PROTEINA CONGELADA" in e:
         return "PROTEINA CONGELADA"
-
-    # APARAS
     if "APARAS" in e:
         return "APARAS"
-
-    # SOCORRO
     if "SOCORRO" in e:
         return "SOCORRO"
-
-    # ANTECIPAÇÃO
     if "ANTECIP" in e:
         return "ANTECIPACAO"
-
-    # REGENERAÇÃO
     if "REGENER" in e:
         return "REGENERACAO"
 
-    # FALLBACK
     return etapa
 
-
 def definir_turno_da_pesagem(restaurante, horario, etapa):
-    # Define o turno (ALMOCO ou JANTAR) com base no restaurante, etapa e horário, caso não tenha "ALMOCO/JANTAR" na etapa.
-
     etapa_upper = etapa.upper().strip() 
 
     if "ALM" in etapa_upper:
@@ -324,171 +267,30 @@ def definir_turno_da_pesagem(restaurante, horario, etapa):
     if not abre_todo_dia_almoco_e_jantar:
         return "ALMOCO"
     
-    # Regra: Produção Inicial Transportada (Regra de Inversão)
     if eh_prod_inicial and eh_prod_transportada:
         if horario > "16:00:00" or horario < "06:00:00":
             return "ALMOCO"
         return "JANTAR"
 
-    # Regra: Produção Inicial Geral (Não Transportada)
     if eh_prod_inicial:
         if horario > "03:00:00" and horario < "13:30:00":
             return "ALMOCO"
         return "JANTAR"
     
-    # Regra: Outras Etapas
     if horario > "06:00:00" and horario < "17:00:00":
         return "ALMOCO"
     return "JANTAR"
 
-def avaliar_erros_na_pesagem(produto, etapa, horario, turno):
-    # Avalia erros de pesagem com base em regras de horário e etapa (Pré-Cluster).
-    REGRAS_HORARIO = {
-        "JANTAR": {
-            # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
-            "PRODUCAO INICIAL": "19:15:00",
-            # Cadenciamento com 15 minutos de tolerância antes do início do horário de atendimento
-            "CADENCIAMENTO": ("18:45:00", "22:00:00")
-        },
-        "ALMOCO": {
-            # Produção inicial com 15 minutos de tolerância após o início do horário de atendimento
-            "PRODUCAO INICIAL": "11:00:00",
-            # Cadenciamento com 15 minutos de tolerância antes do início do horário deatendimento
-            "CADENCIAMENTO": ("10:30:00", "14:30:00")
-        }
-    }
-    
-    # Z AMOSTRA
-    if produto == "Z AMOSTRA" and etapa != "PERDA POR PREPARACAO":
-        return "ERRO NA PESAGEM DE AMOSTRA"
-    
-    if turno in REGRAS_HORARIO:
-        regras_turno = REGRAS_HORARIO[turno]
-
-        # Se a perda por preparação é lançado depois o fim do horário de atendimento
-        if "PERDA POR PREPARACAO" in etapa and produto != "Z AMOSTRA":
-            limite_horario = regras_turno.get("CADENCIAMENTO")
-            if limite_horario and horario > limite_horario[1]:
-                return "SOBRA LIMPA PESADA COMO PERDA POR PREP."
-            # A checagem de Cadenciamento vs perda por poreparação é feita na função de Clusterização.
-        
-        # Se a sobra limpa está sendo pesada antes ou depois do início/fim do horário de atendimento
-        if "SOBRA LIMPA" in etapa:
-            if turno == "ALMOCO":
-                if horario < "10:45:00" or horario > "17:00:00":
-                    return "ERRO NA PESAGEM DE SOBRA LIMPA"
-            elif turno == "JANTAR":
-                if horario < "19:00:00" and horario > "06:00:00":
-                    return "ERRO NA PESAGEM DE SOBRA LIMPA"
-        
-        # Se a produção inicial está sendo pesada apenas antes do início do horário de atendimento
-        elif "PRODUCAO INICIAL" in etapa:
-            if etapa == "PRODUCAO INICIAL TRANSPORTADA": return None
-            limite_horario = regras_turno.get("PRODUCAO INICIAL")
-            if horario > limite_horario:
-                return "ERRO NA PESAGEM DE PROD. INICIAL"
-
-        # Se o cadenciamento está sendo pesado só dentro do intervalo de atendimento
-        elif "CADENCIAMENTO" in etapa:
-            limite_horario = regras_turno.get("CADENCIAMENTO")
-            if (horario < limite_horario[0] or horario > limite_horario[1]):
-                return "ERRO NA PESAGEM DE CADENCIAMENTO"
-                
-    return None
-
-def analisar_clusters_de_pesagem(df):
-    # Aplica clusterização K-Means para identificar e sinalizar registros de perda por preparação que se comportam como cadenciamento.
-    REGRAS_HORARIO_CLUSTERS = {
-    "JANTAR": {
-        "CADENCIAMENTO": ("19:00:00", "22:00:00")
-    },
-    "ALMOCO": {
-        "CADENCIAMENTO": ("10:45:00", "14:30:00")
-    }
-    }
-    
-    # Pré-Processamento e Filtragem
-    df.sort_values(by=['restaurante', 'horario'], inplace=True)
-    df['horario'] = df['horario'].astype(str)
-    
-    # Excluir Z AMOSTRA da análise, pois sempre vai ser perda por preparação
-    df_filtrado = df[df['produto'] != "Z AMOSTRA"].copy() 
-
-    df_filtrado = df_filtrado[
-        ~df_filtrado['restaurante'].str.contains('MINI', case=False, na=False)
-    ].copy()
-
-    # Coluna auxiliar para minutos desde a meia-noite
-    def to_minutes(h):
-        if pd.isna(h) or not isinstance(h, str) or len(h.split(':')) < 2: return None
-        try:
-            H, M, S = map(int, h.split(':'))
-            return H * 60 + M
-        except ValueError:
-            return None
-        
-    df_filtrado['minutos_desde_meia_noite'] = df_filtrado['horario'].apply(to_minutes)
-    
-    # Filtrar por horário válido de cadenciamento (sempre dentro dos horários de atendimento)
-    def eh_horario_cadenciamento(row):
-        turno = row['turno']
-        horario = row['horario']
-        if turno not in REGRAS_HORARIO_CLUSTERS: return False
-        limites = REGRAS_HORARIO_CLUSTERS[turno]["CADENCIAMENTO"]
-        return limites[0] <= horario <= limites[1]
-
-    df_filtrado['eh_horario_valido'] = df_filtrado.apply(eh_horario_cadenciamento, axis=1)
-    df_filtrado = df_filtrado[df_filtrado['eh_horario_valido'] == True]
-    
-    if len(df_filtrado) < 10:
-        print("AVISO: Dados insuficientes após o filtro de horário para Clusterização.")
-        return df
-
-    # Calcular o intervalo de tempo
-    df_agrupado = df_filtrado.groupby(['restaurante', 'produto'])
-    df_filtrado['intervalo_minutos'] = df_agrupado['minutos_desde_meia_noite'].diff()
-    
-    # Remoção de NaNs (primeira pesagem do grupo)
-    df_limpo = df_filtrado.dropna(subset=['pesagem', 'intervalo_minutos']).copy() 
-
-    # Treinamento e Clusterização (K-Means)
-    CARACTERISTICAS = ['pesagem', 'intervalo_minutos']
-    X = df_limpo[CARACTERISTICAS]
-
-    escala = StandardScaler()
-    X_escala = escala.fit_transform(X)
-    
-    K = 5 
-    kmeans = KMeans(n_clusters=K, random_state=42, n_init=10)
-    df_limpo['cluster_id'] = kmeans.fit_predict(X_escala)
-    
-    # Identificação do cluster de cadenciamento (menor intervalo médio)
-    cluster_analise = df_limpo.groupby('cluster_id')['intervalo_minutos'].mean()
-    cluster_cadenciamento_id = cluster_analise.idxmin()
-
-    # 4. Aplicação da regra de desvio
-    eh_ppp_suspeito_cad = (
-        (df_limpo['etapa'].str.upper().str.contains("PERDA POR PREPARACAO")) &
-        (df_limpo['cluster_id'] == cluster_cadenciamento_id)
-    )
-    
-    df_limpo.loc[eh_ppp_suspeito_cad, 'erro_cluster'] = "CADENCIAMENTO PESADO COMO PERDA POR PREP."
-    
-    # Merge de volta ao DF original
-    df = df.merge(df_limpo[['cluster_id', 'erro_cluster']], 
-                  left_index=True, right_index=True, how='left')
-
-    # Junta o novo erro com a coluna 'erro' existente
-    df['erro'] = df.apply(
-        lambda row: row['erro_cluster'] if pd.notna(row['erro_cluster']) else row['erro'], 
-        axis=1
-    )
-    
-    # Limpeza final das colunas auxiliares
-    df.drop(columns=['minutos_desde_meia_noite', 'intervalo_minutos', 'cluster_id', 'erro_cluster', 'eh_horario_valido'], 
-            inplace=True, errors='ignore')
-    
-    return df
+def extrair_df_aba(wb, nome_aba):
+    """Extrai uma aba via Calamine e retorna como DataFrame."""
+    try:
+        planilha = wb.get_sheet_by_name(nome_aba)
+        dados = planilha.to_python()
+        if not dados or len(dados) < 2:
+            return pd.DataFrame()
+        return pd.DataFrame(dados[1:], columns=dados[0])
+    except Exception:
+        return pd.DataFrame()
 
 # ============================================================================== #
 #                               Função principal                                 #
@@ -497,7 +299,7 @@ def analisar_clusters_de_pesagem(df):
 arquivo_entrada = encontrar_arquivo_apuracao()
 
 if arquivo_entrada:
-    arquivo_saida = (f"apuracao_consolidada_{arquivo_entrada[37:].replace('.xlsx','')}.xlsx")
+    arquivo_saida = f"apuracao_consolidada_{arquivo_entrada[37:].replace('.xlsx','')}.xlsx"
 else:
     arquivo_saida = "apuracao_consolidada_ERRO.xlsx"
 
@@ -531,7 +333,7 @@ def tratar_planilha_apuracao():
 
         nomes_abas_disponiveis = wb.sheet_names
 
-        # Carregamento e inserção de colunas dependentes da aba, como por exemplo nome do restaurante e nome da balança.
+        # Carregamento e inserção de colunas dependentes da aba de pesagens
         for aba_nome in nomes_abas_disponiveis:
             inicio = time.time()
             if "3352 - " not in aba_nome.upper(): continue
@@ -574,12 +376,61 @@ def tratar_planilha_apuracao():
             else:
                 print(f"Aba '{aba_nome}' resultou em um DataFrame vazio após o processamento/filtragem")
 
+        # ====================================================================== #
+        #       Tratamento das Abas: NOTA ITEM e NOTA CONFERENCIA                #
+        # ====================================================================== #
+        df_nota_item = pd.DataFrame()
+        df_nota_conferencia = pd.DataFrame()
+
+        # 1. NOTA ITEM
+        if "NOTA ITEM" in nomes_abas_disponiveis:
+            print("\nTratando aba NOTA ITEM...")
+            df_ni = extrair_df_aba(wb, "NOTA ITEM")
+            if not df_ni.empty:
+                colunas_nota_item = [
+                    "dt_emissao", "num_nota", "chave_nota", "categoria_1", "categoria_2",
+                    "produto_estoque", "conferido", "qtde_nota", "qtde_contagem"
+                ]
+                df_nota_item = df_ni[[col for col in colunas_nota_item if col in df_ni.columns]].copy()
+
+                if 'dt_emissao' in df_nota_item.columns:
+                    try:
+                        df_nota_item['dt_emissao'] = pd.to_datetime(df_nota_item['dt_emissao'], errors='coerce').dt.strftime('%d/%m/%Y')
+                    except Exception as e:
+                        print(f"Erro ao processar dt_emissao em NOTA ITEM: {e}")
+
+                if opcao_usuario == 's' and 'dt_emissao' in df_nota_item.columns:
+                    df_nota_item = df_nota_item[df_nota_item['dt_emissao'].isin(data_para_filtro)]
+            else:
+                print("Aba 'NOTA ITEM' está vazia.")
+
+        # 2. NOTA CONFERENCIA
+        if "NOTA CONFERENCIA" in nomes_abas_disponiveis:
+            print("Tratando aba NOTA CONFERENCIA...")
+            df_nc = extrair_df_aba(wb, "NOTA CONFERENCIA")
+            if not df_nc.empty:
+                colunas_nota_conf = [
+                    "dt_emissao", "num_nota", "chave_nota", "status_nota",
+                    "conferencia_final", "qtde_itens_nota"
+                ]
+                df_nota_conferencia = df_nc[[col for col in colunas_nota_conf if col in df_nc.columns]].copy()
+
+                if 'dt_emissao' in df_nota_conferencia.columns:
+                    try:
+                        df_nota_conferencia['dt_emissao'] = pd.to_datetime(df_nota_conferencia['dt_emissao'], errors='coerce').dt.strftime('%d/%m/%Y')
+                    except Exception as e:
+                        print(f"Erro ao processar dt_emissao em NOTA CONFERENCIA: {e}")
+
+                if opcao_usuario == 's' and 'dt_emissao' in df_nota_conferencia.columns:
+                    df_nota_conferencia = df_nota_conferencia[df_nota_conferencia['dt_emissao'].isin(data_para_filtro)]
+            else:
+                print("Aba 'NOTA CONFERENCIA' está vazia.")
+
         # INSERÇÃO DE COLUNAS NO DATAFRAME COM BASE EM FUNÇÕES
         dfs_validos = [df for df in dfs if not df.empty]
         if dfs_validos:
             df_final = pd.concat(dfs_validos, ignore_index=True)
 
-            # Definição das datas que terão log
             if opcao_usuario == 's':
                 datas_unicas = data_para_filtro
             else:
@@ -601,45 +452,50 @@ def tratar_planilha_apuracao():
             else:
                  df_final.insert(loc=6, column="categoria", value=None)
 
-            # Identificação de erros com base em horários
-            df_final['erro'] = df_final.apply(
-                lambda row: avaliar_erros_na_pesagem(produto=row['produto'], etapa=row['etapa'], horario=row['horario'], turno=row['turno']), axis=1
-            )
-
             # Tratamento da coluna de etapa
             df_final["etapa"] = df_final.apply(
-            lambda row: definir_etapa(
-                etapa=row["etapa"],
-                restaurante=row["restaurante"],
-                balanca=row["balanca"],
-                produto=row["produto"]
-            ),
-            axis=1
+                lambda row: definir_etapa(
+                    etapa=row["etapa"],
+                    restaurante=row["restaurante"],
+                    balanca=row["balanca"],
+                    produto=row["produto"]
+                ),
+                axis=1
             )
             
-            # Análise por clusterização para erros de perda de preparação
-            df_final = analisar_clusters_de_pesagem(df_final)
-            
-            # Definição da ordem final das colunas
             colunas_finais = [
-            'data', 'restaurante', 'turno', 'balanca', 'horario', 
-            'categoria', 'etapa', 'produto', 'panela', 'pesagem', 
-            'servico', 'erro'
+                'data', 'restaurante', 'turno', 'balanca', 'horario', 
+                'categoria', 'etapa', 'produto', 'panela', 'pesagem', 
+                'servico',
             ]
 
             df_final = df_final[[c for c in colunas_finais if c in df_final.columns]]
 
-            # Salvamento
-            df_final.to_excel(arquivo_saida, index=False)
-            print(F"\nArquivo {arquivo_saida} criado. Aguarde...")
-            formatar_coluna_data(arquivo_saida)
+            # Salvamento das abas consolidadas
+            print(f"\nGravando abas no arquivo {arquivo_saida}...")
+            with pd.ExcelWriter(arquivo_saida, engine='openpyxl') as writer:
+                df_final.to_excel(writer, sheet_name='pesagens', index=False)
+                if not df_nota_item.empty:
+                    df_nota_item.to_excel(writer, sheet_name='nota_item', index=False)
+                if not df_nota_conferencia.empty:
+                    df_nota_conferencia.to_excel(writer, sheet_name='nota_conferencia', index=False)
+
+            # Formatação de datas em cada aba
+            print("\nAplicando formatações de data com openpyxl...")
+            formatar_coluna_data(arquivo_saida, nome_coluna='data', nome_aba='pesagens')
+            if not df_nota_item.empty:
+                formatar_coluna_data(arquivo_saida, nome_coluna='dt_emissao', nome_aba='nota_item')
+            if not df_nota_conferencia.empty:
+                formatar_coluna_data(arquivo_saida, nome_coluna='dt_emissao', nome_aba='nota_conferencia')
+            if not df_nota_conferencia.empty:
+                formatar_coluna_data(arquivo_saida, nome_coluna='conferencia_final', nome_aba='nota_conferencia')
 
             fim = time.time()
-            print(f"Total de linhas processadas: {len(df_final)}")
-            print(f"Total de planilhas processadas: {len(dfs_validos)}")
+            print(f"\nTotal de linhas de pesagens processadas: {len(df_final)}")
+            print(f"Total de linhas em nota_item: {len(df_nota_item)}")
+            print(f"Total de linhas em nota_conferencia: {len(df_nota_conferencia)}")
             print(f"Tempo de execução: {(fim - inicio):.2f} segundos")
 
-            # Listas "mestres" de etapas e restaurantes
             etapas_mestre_global = (
                 df_final['etapa']
                 .dropna()
@@ -671,8 +527,8 @@ def tratar_planilha_apuracao():
 
         else:
             print("Nenhuma aba válida para consolidação.")
-    except PermissionError as e:
-            print(f"\nErro ao sobreescrever o arquivo. Feche a planilha e tente novamente.")
+    except PermissionError:
+        print("\nErro ao sobrescrever o arquivo. Feche a planilha e tente novamente.")
     except Exception as e:
         print(f"\nErro durante a execução: {e}")
         
